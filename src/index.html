@@ -6,7 +6,8 @@
 <style>
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
     font-family: "Segoe UI", sans-serif; user-select: none; }
-  .bar { display: flex; align-items: center; gap: 10px; height: 100%; box-sizing: border-box;
+  .wrap { height: 100%; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; }
+  .bar { display: flex; align-items: center; gap: 10px; height: 52px; flex: none; box-sizing: border-box;
     padding: 0 10px; background: rgba(24,24,28,.94); color: #eee; border-radius: 26px;
     border: 1px solid rgba(255,255,255,.1); -webkit-app-region: drag; }
   button { -webkit-app-region: no-drag; border: 0; cursor: pointer; color: #fff; }
@@ -19,26 +20,161 @@
   #text { flex: 1; font-size: 14px; white-space: nowrap; overflow: hidden;
     text-overflow: ellipsis; direction: rtl; text-align: left; color: #aaa; }
   #text.live { color: #fff; }
-  #close { width: 26px; height: 26px; border-radius: 50%; background: transparent;
-    color: #888; font-size: 16px; flex: none; }
-  #close:hover { background: #3a3a42; color: #fff; }
+  .icon { width: 30px; height: 30px; border-radius: 50%; background: transparent; color: #999;
+    display: grid; place-items: center; flex: none; padding: 0; }
+  .icon { transition: background-color .12s ease, color .12s ease; }
+  .icon:hover, .icon.active { background: #3a3a42; color: #fff; }
+  .icon svg { width: 17px; height: 17px; }
+  #lang { width: auto; min-width: 30px; padding: 0 8px; border-radius: 15px; font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+  #close { font-size: 16px; }
+  .micwrap { position: relative; flex: none; -webkit-app-region: no-drag; }
+  .menuOuter { visibility: hidden; opacity: 0; transition: opacity .12s ease, visibility 0s .12s; position: absolute; right: var(--r, -50px); bottom: 100%; padding-bottom: 17px; }
+  .menuOuter.open { visibility: visible; opacity: 1; transition: opacity .12s ease, visibility 0s; }
+  .menu { display: flex; flex-direction: column; gap: 2px; min-width: 230px; max-width: 300px; box-sizing: border-box;
+    background: rgba(24,24,28,.94); border-radius: 26px; border: 1px solid rgba(255,255,255,.1);
+    padding: 8px; overflow-y: auto; max-height: 280px; }
+  .menu .title { font-size: 11px; color: #888; padding: 4px 12px 6px; text-transform: uppercase; letter-spacing: .06em; }
+  .menu .item { background: transparent; text-align: left; padding: 8px 12px; border-radius: 18px;
+    font-size: 13px; color: #ddd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .menu .item { transition: background-color .1s ease, color .1s ease; }
+  .menu .item:hover { background: #3a3a42; color: #fff; }
+  .menu .item.sel { background: rgba(250,204,21,.16); color: #facc15; font-weight: 600; }
 </style>
 </head>
 <body>
-<div class="bar">
-  <button id="rec" title="Kaydı başlat / durdur"></button>
-  <div id="text"><bdi>Konuşmak için kayıt tuşuna bas…</bdi></div>
-  <button id="close" title="Kapat">✕</button>
+<div class="wrap">
+  <div class="bar">
+    <button id="rec" title="Kaydı başlat / durdur"></button>
+    <div id="text"><bdi>Konuşmak için kayıt tuşuna bas…</bdi></div>
+    <div class="micwrap" id="micwrap" style="--r:-90px">
+      <button id="mic" class="icon" title="Mikrofon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4"/></svg>
+      </button>
+      <div id="menuOuter" class="menuOuter"><div id="menu" class="menu"></div></div>
+    </div>
+    <div class="micwrap" id="langwrap" style="--r:-50px">
+      <button id="lang" class="icon" title="Dil">AUTO</button>
+      <div id="langOuter" class="menuOuter"><div id="langMenu" class="menu"></div></div>
+    </div>
+    <button id="close" class="icon" title="Kapat">✕</button>
+  </div>
 </div>
 <script>
   const rec = document.getElementById('rec');
   const text = document.getElementById('text');
+  const mic = document.getElementById('mic');
+  const menu = document.getElementById('menu');
+  const IDLE = 'Konuşmak için kayıt tuşuna bas…';
+
+  // Seçili mikrofon: 'default' = Windows'un varsayılanı
+  window.selectedMicId = 'default';
+  try { window.selectedMicId = localStorage.getItem('micId') || 'default'; } catch (e) {}
+
   rec.addEventListener('click', () => {
     const on = rec.classList.toggle('on');
     text.classList.toggle('live', on);
-    text.firstChild.textContent = on ? 'Dinliyorum…' : 'Konuşmak için kayıt tuşuna bas…';
+    text.firstChild.textContent = on ? 'Dinliyorum…' : IDLE;
   });
   document.getElementById('close').addEventListener('click', () => window.dikte.close());
+
+  const LANGS = [
+    { id: 'auto', label: 'Dili algıla', short: 'AUTO' },
+    { id: 'tr',   label: 'Türkçe',      short: 'TR' },
+    { id: 'en',   label: 'English',     short: 'EN' }
+  ];
+  window.selectedLang = 'auto';
+  try { window.selectedLang = localStorage.getItem('lang') || 'auto'; } catch (e) {}
+  const langBtn = document.getElementById('lang');
+  const setLangBtn = () => { langBtn.textContent = (LANGS.find(l => l.id === window.selectedLang) || LANGS[0]).short; };
+  setLangBtn();
+
+  // Aygıt listesi önbellekte tutulur: hover anında bekleme / yeniden yükleme olmaz
+  let deviceCache = { defName: '', list: [] };
+  async function refreshDevices(ask) {
+    if (ask) {
+      try { // İzin verilmeden aygıt adları boş gelir
+        const st = await navigator.mediaDevices.getUserMedia({ audio: true });
+        st.getTracks().forEach(t => t.stop());
+      } catch (e) { /* izin yoksa yine de listeyi dene */ }
+    }
+    const all = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
+    const def = all.find(d => d.deviceId === 'default');
+    // Chromium varsayılan aygıtı "Default - Mikrofon (X)" diye adlandırır
+    const defName = def ? def.label.replace(/^(Default|Varsayılan)\s*-\s*/i, '') : '';
+    const list = all.filter(d => d.deviceId !== 'default' && d.deviceId !== 'communications');
+    deviceCache = { defName, list };
+  }
+  refreshDevices(true);
+
+  let curH = 52, shrinkTimer = null;
+  function setWinH(h) { if (h !== curH) { curH = h; window.dikte.resize(h); } }
+
+  const menus = [];
+  function setupMenu(wrapId, btn, render) {
+    const wrap = document.getElementById(wrapId);
+    const outer = wrap.querySelector('.menuOuter');
+    const menuEl = wrap.querySelector('.menu');
+    let timer = null, hovering = false;
+    const m = { outer, isOpen: () => outer.classList.contains('open') };
+    menus.push(m);
+    m.hide = (shrink = true) => {
+      clearTimeout(timer);
+      outer.classList.remove('open'); btn.classList.remove('active');
+      if (shrink) {
+        clearTimeout(shrinkTimer);
+        // pencereyi, fade-out bittikten sonra küçült (titreme olmasın)
+        shrinkTimer = setTimeout(() => { if (!menus.some(x => x.isOpen())) setWinH(52); }, 160);
+      }
+    };
+    m.render = () => render(menuEl, m.hide);
+    m.open = () => {
+      clearTimeout(timer); clearTimeout(shrinkTimer);
+      hovering = true;
+      if (m.isOpen()) return;
+      menus.forEach(x => { if (x !== m) x.hide(false); });
+      m.render();
+      setWinH(52 + 6 + menuEl.offsetHeight);
+      // pencere büyüdükten sonra göster (kırpılma / sıçrama olmasın)
+      setTimeout(() => { if (hovering) { outer.classList.add('open'); btn.classList.add('active'); } }, 40);
+    };
+    wrap.addEventListener('mouseenter', m.open);
+    wrap.addEventListener('mouseleave', () => { hovering = false; clearTimeout(timer); timer = setTimeout(() => m.hide(), 180); });
+    return m;
+  }
+
+  function addItem(menuEl, label, selected, onClick) {
+    const b = document.createElement('button');
+    b.className = 'item' + (selected ? ' sel' : '');
+    b.textContent = label; b.title = label;
+    b.addEventListener('click', onClick);
+    menuEl.appendChild(b);
+  }
+
+  const micMenu = setupMenu('micwrap', mic, (menuEl, hide) => {
+    const { defName, list } = deviceCache;
+    if (window.selectedMicId !== 'default' && !list.some(d => d.deviceId === window.selectedMicId)) {
+      window.selectedMicId = 'default'; // seçili aygıt çıkarıldıysa varsayılana dön
+    }
+    menuEl.innerHTML = '<div class="title">Mikrofon (giriş)</div>';
+    addItem(menuEl, 'Varsayılan' + (defName ? ' – ' + defName : ''), window.selectedMicId === 'default',
+      () => { window.selectedMicId = 'default'; try { localStorage.setItem('micId', 'default'); } catch (e) {} hide(); });
+    list.forEach(d => addItem(menuEl, d.label || 'Mikrofon', window.selectedMicId === d.deviceId,
+      () => { window.selectedMicId = d.deviceId; try { localStorage.setItem('micId', d.deviceId); } catch (e) {} hide(); }));
+  });
+
+  setupMenu('langwrap', langBtn, (menuEl, hide) => {
+    menuEl.innerHTML = '<div class="title">Dil</div>';
+    LANGS.forEach(l => addItem(menuEl, l.label, window.selectedLang === l.id, () => {
+      window.selectedLang = l.id;
+      try { localStorage.setItem('lang', l.id); } catch (e) {}
+      setLangBtn(); hide();
+    }));
+  });
+
+  navigator.mediaDevices.addEventListener('devicechange', async () => {
+    await refreshDevices(false);
+    if (micMenu.isOpen()) { micMenu.render(); setWinH(52 + 6 + document.querySelector('#micwrap .menu').offsetHeight); }
+  });
 </script>
 </body>
 </html>

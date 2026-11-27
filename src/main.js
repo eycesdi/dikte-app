@@ -30,6 +30,14 @@ function createBar() {
 app.whenReady().then(() => {
   createBar();
   ipcMain.on('close-app', () => app.quit());
+  ipcMain.on('resize-bar', (e, h) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    if (!win) return;
+    const b = win.getBounds();
+    const bottom = b.y + b.height;
+    const height = Math.max(BAR_H, Math.min(Math.round(h), 360));
+    win.setBounds({ x: b.x, y: bottom - height, width: b.width, height });
+  });
 });
 
 app.on('window-all-closed', () => app.quit());
