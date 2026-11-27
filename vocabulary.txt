@@ -1,0 +1,7 @@
+# Kendi kelime listen: her satıra bir kelime yaz (# sonrası yorumdur).
+# Model bu kelimelere benzeyen yanlış yazımları (örn. "Çarşaba" -> "çarşamba") otomatik düzeltir.
+# Gün ve ay adları zaten içeride tanımlı. İsimler, terimler, yabancı kelimeler ekleyebilirsin.
+# Örnekler (başındaki # işaretini kaldırırsan çalışır):
+# deadline
+# meeting
+# Claude

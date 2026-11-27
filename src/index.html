@@ -7,9 +7,12 @@
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
     font-family: "Segoe UI", sans-serif; user-select: none; }
   .wrap { height: 100%; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; }
+  body.down .wrap { justify-content: flex-start; }
+  body.down .menuOuter { bottom: auto; top: 100%; padding-bottom: 0; padding-top: 17px; }
   .bar { display: flex; align-items: center; gap: 10px; height: 52px; flex: none; box-sizing: border-box;
     padding: 0 10px; background: rgba(24,24,28,.94); color: #eee; border-radius: 26px;
-    border: 1px solid rgba(255,255,255,.1); -webkit-app-region: drag; }
+    border: 1.5px solid rgba(255,255,255,.32); cursor: grab; touch-action: none;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.35); }
   button { -webkit-app-region: no-drag; border: 0; cursor: pointer; color: #fff; }
   #rec { width: 34px; height: 34px; border-radius: 50%; background: #3a3a42; flex: none; }
   #rec::after { content: ""; display: block; width: 12px; height: 12px; margin: auto;
@@ -19,19 +22,34 @@
   @keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(229,72,77,.25); } }
   #text { flex: 1; font-size: 14px; white-space: nowrap; overflow: hidden;
     text-overflow: ellipsis; direction: rtl; text-align: left; color: #aaa; }
+  #meter { display: none; align-items: center; gap: 3px; height: 22px; flex: none; }
+  #meter.on { display: flex; }
+  #meter i { width: 3px; height: 4px; border-radius: 2px; background: #e5484d; transition: height .06s linear; }
   #text.live { color: #fff; }
   .icon { width: 30px; height: 30px; border-radius: 50%; background: transparent; color: #999;
     display: grid; place-items: center; flex: none; padding: 0; }
   .icon { transition: background-color .12s ease, color .12s ease; }
   .icon:hover, .icon.active { background: #3a3a42; color: #fff; }
   .icon svg { width: 17px; height: 17px; }
+  #copy.ok { color: #4ade80; }
   #lang { width: auto; min-width: 30px; padding: 0 8px; border-radius: 15px; font-size: 11px; font-weight: 700; letter-spacing: .04em; }
   #close { font-size: 16px; }
+  .panel { display: none; flex: none; box-sizing: border-box; background: rgba(24,24,28,.94); border-radius: 22px;
+    border: 1.5px solid rgba(255,255,255,.32); box-shadow: inset 0 0 0 1px rgba(0,0,0,.35);
+    padding: 12px 18px; max-height: 380px; overflow-y: auto; user-select: text; cursor: text;
+    color: #fff; font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+    opacity: 0; transition: opacity .12s ease; }
+  .panel.show { display: block; }
+  .panel.vis { opacity: 1; }
+  .panel .p { color: #9aa0aa; }
+  .panel::-webkit-scrollbar { width: 6px; }
+  .panel::-webkit-scrollbar-thumb { background: #4a4a54; border-radius: 3px; }
+  body.down .panel { order: 2; }
   .micwrap { position: relative; flex: none; -webkit-app-region: no-drag; }
   .menuOuter { visibility: hidden; opacity: 0; transition: opacity .12s ease, visibility 0s .12s; position: absolute; right: var(--r, -50px); bottom: 100%; padding-bottom: 17px; }
   .menuOuter.open { visibility: visible; opacity: 1; transition: opacity .12s ease, visibility 0s; }
   .menu { display: flex; flex-direction: column; gap: 2px; min-width: 230px; max-width: 300px; box-sizing: border-box;
-    background: rgba(24,24,28,.94); border-radius: 26px; border: 1px solid rgba(255,255,255,.1);
+    background: rgba(24,24,28,.94); border-radius: 26px; border: 1.5px solid rgba(255,255,255,.32); box-shadow: inset 0 0 0 1px rgba(0,0,0,.35);
     padding: 8px; overflow-y: auto; max-height: 280px; }
   .menu .title { font-size: 11px; color: #888; padding: 4px 12px 6px; text-transform: uppercase; letter-spacing: .06em; }
   .menu .item { background: transparent; text-align: left; padding: 8px 12px; border-radius: 18px;
@@ -43,19 +61,27 @@
 </head>
 <body>
 <div class="wrap">
+  <div id="panel" class="panel"></div>
   <div class="bar">
     <button id="rec" title="Kaydı başlat / durdur"></button>
+    <div id="meter"><i></i><i></i><i></i><i></i><i></i></div>
     <div id="text"><bdi>Konuşmak için kayıt tuşuna bas…</bdi></div>
-    <div class="micwrap" id="micwrap" style="--r:-90px">
+    <button id="copy" class="icon" title="Metni kopyala" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>
+    </button>
+    <div class="micwrap" id="micwrap" style="--r:-130px">
       <button id="mic" class="icon" title="Mikrofon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4"/></svg>
       </button>
       <div id="menuOuter" class="menuOuter"><div id="menu" class="menu"></div></div>
     </div>
-    <div class="micwrap" id="langwrap" style="--r:-50px">
+    <div class="micwrap" id="langwrap" style="--r:-90px">
       <button id="lang" class="icon" title="Dil">AUTO</button>
       <div id="langOuter" class="menuOuter"><div id="langMenu" class="menu"></div></div>
     </div>
+    <button id="min" class="icon" title="Tray'e küçült">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 12h12"/></svg>
+    </button>
     <button id="close" class="icon" title="Kapat">✕</button>
   </div>
 </div>
@@ -70,11 +96,141 @@
   window.selectedMicId = 'default';
   try { window.selectedMicId = localStorage.getItem('micId') || 'default'; } catch (e) {}
 
-  rec.addEventListener('click', () => {
-    const on = rec.classList.toggle('on');
-    text.classList.toggle('live', on);
-    text.firstChild.textContent = on ? 'Dinliyorum…' : IDLE;
+  const meter = document.getElementById('meter');
+  const bars = [...meter.children];
+  const setText = (t) => { text.firstChild.textContent = t; };
+
+  // 16 kHz mono ses parçalarını (100 ms) ana sürece gönderen worklet
+  const WORKLET = `class R extends AudioWorkletProcessor {
+    constructor() { super(); this.buf = new Float32Array(1600); this.n = 0; }
+    process(inputs) {
+      const ch = inputs[0][0];
+      if (!ch) return true;
+      let i = 0;
+      while (i < ch.length) {
+        const take = Math.min(ch.length - i, 1600 - this.n);
+        this.buf.set(ch.subarray(i, i + take), this.n);
+        this.n += take; i += take;
+        if (this.n === 1600) { this.port.postMessage(this.buf.slice()); this.n = 0; }
+      }
+      return true;
+    }
+  }
+  registerProcessor('rec-proc', R);`;
+
+  let ctx = null, stream = null, node = null, recording = false, busy = false, lvl = 0;
+
+  function showLevel(f) {
+    let sum = 0;
+    for (let i = 0; i < f.length; i++) sum += f[i] * f[i];
+    const rms = Math.sqrt(sum / f.length);
+    const target = Math.min(1, Math.sqrt(rms) * 2.2);     // sessiz sesleri de göster
+    lvl = lvl * 0.5 + target * 0.5;
+    bars.forEach((b, i) => {
+      const k = [0.55, 0.8, 1, 0.8, 0.55][i];
+      b.style.height = (4 + Math.round(lvl * k * 18)) + 'px';
+    });
+  }
+
+  async function startRec() {
+    const id = window.selectedMicId;
+    stream = await navigator.mediaDevices.getUserMedia({ audio: {
+      deviceId: id === 'default' ? undefined : { exact: id },
+      channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: true } });
+    ctx = new AudioContext({ sampleRate: 16000 });
+    const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
+    await ctx.audioWorklet.addModule(url);
+    URL.revokeObjectURL(url);
+    window.dikte.audioStart(window.selectedLang);
+    node = new AudioWorkletNode(ctx, 'rec-proc');
+    node.port.onmessage = (e) => { window.dikte.audioChunk(e.data.buffer); showLevel(e.data); };
+    const mute = ctx.createGain(); mute.gain.value = 0;      // düğümün çalışması için çıkışa bağla, ses verme
+    ctx.createMediaStreamSource(stream).connect(node);
+    node.connect(mute).connect(ctx.destination);
+  }
+
+  async function stopRec() {
+    if (node) { node.port.onmessage = null; node.disconnect(); }
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    if (ctx) await ctx.close();
+    node = stream = ctx = null;
+    return window.dikte.audioSave();
+  }
+
+  // ---- Whisper durumu ve canlı yazı ----
+  let whisperReady = false, committed = '', partial = '', doneResolve = null;
+  rec.disabled = true; rec.style.opacity = '.5';
+  setText('Whisper yükleniyor…');
+
+  function setReady(info) {
+    whisperReady = true; rec.disabled = false; rec.style.opacity = '';
+    if (!recording) setText('Konuşmak için kayıt tuşuna bas…' + (info && info.device === 'cpu' ? ' (CPU)' : ''));
+  }
+  const copyBtn = document.getElementById('copy');
+  const curText = () => (committed + ' ' + partial).trim();
+  const refreshCopy = () => { copyBtn.style.display = curText() ? '' : 'none'; };
+  const showLive = () => { setText(curText() || 'Dinliyorum…'); refreshCopy(); syncPanel(); };
+  copyBtn.addEventListener('click', async () => {
+    await window.dikte.copyText(curText());
+    copyBtn.classList.add('ok'); copyBtn.title = 'Kopyalandı';
+    setTimeout(() => { copyBtn.classList.remove('ok'); copyBtn.title = 'Metni kopyala'; }, 1200);
   });
+
+  window.dikte.onWhisper((m) => {
+    if (m.type === 'ready') setReady(m);
+    else if (m.type === 'partial') { partial = m.text; if (recording) showLive(); }
+    else if (m.type === 'commit') { committed = (committed + ' ' + m.text).trim(); partial = ''; if (recording) showLive(); }
+    else if (m.type === 'done') { if (doneResolve) doneResolve(); }
+    else if (m.type === 'restarting') { whisperReady = false; rec.disabled = true; rec.style.opacity = '.5'; setText('Konuşma motoru yeniden başlatılıyor…'); }
+    else if (m.type === 'failed') { whisperReady = false; rec.disabled = true; rec.style.opacity = '.5'; setText('Konuşma motoru başlatılamadı. Uygulamayı yeniden aç.'); }
+  });
+  window.dikte.whisperStatus().then(s => { if (s.ready) setReady(s.info); });
+
+  rec.addEventListener('click', async () => {
+    if (busy || !whisperReady) return;
+    busy = true;
+    try {
+      if (!recording) {
+        committed = ''; partial = ''; pinned = false; clearTimeout(pinTimer);
+        await startRec();
+        recording = true;
+        rec.classList.add('on'); text.classList.add('live'); meter.classList.add('on');
+        showLive();
+      } else {
+        recording = false;
+        rec.classList.remove('on'); meter.classList.remove('on'); bars.forEach(b => b.style.height = '4px');
+        const done = new Promise(res => { doneResolve = res; setTimeout(res, 8000); });
+        window.dikte.audioStop();
+        await stopRec();
+        await done; doneResolve = null;
+        text.classList.remove('live');
+        setText(curText() || 'Bir şey duyulmadı'); refreshCopy();
+        // bitince panel 8 sn açık kalsın (okumak için); üstüne gelirsen açık kalmaya devam eder
+        pinned = true; clearTimeout(pinTimer); pinTimer = setTimeout(() => { pinned = false; syncPanel(); }, 8000);
+        syncPanel();
+      }
+    } catch (err) {
+      recording = false;
+      rec.classList.remove('on'); meter.classList.remove('on'); text.classList.remove('live');
+      setText('Mikrofona erişilemedi: ' + (err.name || err.message));
+    } finally { busy = false; }
+  });
+  // Barı sürükleme (butonlar ve menüler hariç)
+  const barEl = document.querySelector('.bar');
+  let drag = null;
+  barEl.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.target.closest('button, .micwrap, .menuOuter')) return;
+    drag = { sx: e.screenX, sy: e.screenY };
+    barEl.setPointerCapture(e.pointerId);
+    barEl.style.cursor = 'grabbing';
+    window.dikte.dragStart();
+  });
+  barEl.addEventListener('pointermove', (e) => { if (drag) window.dikte.dragMove(e.screenX - drag.sx, e.screenY - drag.sy); });
+  const endDrag = () => { if (!drag) return; drag = null; barEl.style.cursor = ''; window.dikte.dragEnd(); };
+  barEl.addEventListener('pointerup', endDrag);
+  barEl.addEventListener('pointercancel', endDrag);
+
+  document.getElementById('min').addEventListener('click', () => window.dikte.minimize());
   document.getElementById('close').addEventListener('click', () => window.dikte.close());
 
   const LANGS = [
@@ -106,16 +262,68 @@
   }
   refreshDevices(true);
 
+  // ---- Uzun metin paneli: pencere büyür, tüm konuşma ve düzeltmeler görünür ----
+  const panel = document.getElementById('panel');
+  let panelHover = false, pinned = false, pinTimer = null, hoverTimer = null, collapseTimer = null;
+  const menuActive = () => menus.some(x => x.isOpen() || x.hovering);
+  const isLong = () => text.scrollWidth > text.clientWidth + 2;
+  const wantPanel = () => !!curText() && !menuActive() && (recording || pinned || panelHover) && isLong();
+
+  function renderPanel() {
+    const atBottom = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 40;
+    panel.innerHTML = '';
+    const c = document.createElement('span'); c.textContent = committed;
+    const p = document.createElement('span'); p.className = 'p'; p.textContent = (committed && partial ? ' ' : '') + partial;
+    panel.append(c, p);
+    if (atBottom || recording) panel.scrollTop = panel.scrollHeight;     // yeni yazıyı hep göster
+  }
+  function showPanel() {
+    clearTimeout(collapseTimer);
+    if (!panel.classList.contains('show')) {
+      if (curH === 52) { curDir = pickDir(); document.body.classList.toggle('down', curDir === 'down'); }
+      panel.classList.add('show');
+    }
+    renderPanel();
+    setWinH(52 + 6 + panel.offsetHeight);
+    setTimeout(() => { if (panel.classList.contains('show')) panel.classList.add('vis'); }, 40);
+  }
+  function hidePanelNow() {
+    clearTimeout(collapseTimer);
+    panel.classList.remove('vis', 'show');
+  }
+  function settle() {                       // menü/panel durumuna göre pencere boyunu ayarla
+    if (menuActive()) return;
+    if (wantPanel()) { showPanel(); return; }
+    panel.classList.remove('vis');
+    clearTimeout(collapseTimer);
+    collapseTimer = setTimeout(() => {
+      if (!wantPanel() && !menuActive()) { panel.classList.remove('show'); setWinH(52); }
+    }, 160);
+  }
+  function syncPanel() { settle(); }
+  const hoverOn = () => { clearTimeout(hoverTimer); panelHover = true; syncPanel(); };
+  const hoverOff = () => { clearTimeout(hoverTimer); hoverTimer = setTimeout(() => { panelHover = false; syncPanel(); }, 280); };
+  text.addEventListener('mouseenter', hoverOn); text.addEventListener('mouseleave', hoverOff);
+  panel.addEventListener('mouseenter', hoverOn); panel.addEventListener('mouseleave', hoverOff);
+
   let curH = 52, shrinkTimer = null;
-  function setWinH(h) { if (h !== curH) { curH = h; window.dikte.resize(h); } }
+  let curDir = 'up';
+  function setWinH(h) { if (h !== curH) { curH = h; window.dikte.resize(h, curDir); } }
+  // Bar ekranın alt yarısındaysa menü yukarı, üst yarısındaysa aşağı açılır
+  function pickDir() {
+    const sc = window.screen;
+    const top = sc.availTop || 0;
+    const mid = top + sc.availHeight / 2;
+    return (window.screenY + 26) > mid ? 'up' : 'down';
+  }
 
   const menus = [];
   function setupMenu(wrapId, btn, render) {
     const wrap = document.getElementById(wrapId);
     const outer = wrap.querySelector('.menuOuter');
     const menuEl = wrap.querySelector('.menu');
-    let timer = null, hovering = false;
-    const m = { outer, isOpen: () => outer.classList.contains('open') };
+    let timer = null;
+    const m = { outer, hovering: false, isOpen: () => outer.classList.contains('open') };
     menus.push(m);
     m.hide = (shrink = true) => {
       clearTimeout(timer);
@@ -123,22 +331,24 @@
       if (shrink) {
         clearTimeout(shrinkTimer);
         // pencereyi, fade-out bittikten sonra küçült (titreme olmasın)
-        shrinkTimer = setTimeout(() => { if (!menus.some(x => x.isOpen())) setWinH(52); }, 160);
+        shrinkTimer = setTimeout(() => { if (!menus.some(x => x.isOpen())) settle(); }, 160);
       }
     };
     m.render = () => render(menuEl, m.hide);
     m.open = () => {
       clearTimeout(timer); clearTimeout(shrinkTimer);
-      hovering = true;
+      m.hovering = true;
       if (m.isOpen()) return;
+      hidePanelNow();                       // menü, metin panelinin yerini alır
       menus.forEach(x => { if (x !== m) x.hide(false); });
+      if (curH === 52) { curDir = pickDir(); document.body.classList.toggle('down', curDir === 'down'); }
       m.render();
       setWinH(52 + 6 + menuEl.offsetHeight);
       // pencere büyüdükten sonra göster (kırpılma / sıçrama olmasın)
-      setTimeout(() => { if (hovering) { outer.classList.add('open'); btn.classList.add('active'); } }, 40);
+      setTimeout(() => { if (m.hovering) { outer.classList.add('open'); btn.classList.add('active'); } }, 40);
     };
     wrap.addEventListener('mouseenter', m.open);
-    wrap.addEventListener('mouseleave', () => { hovering = false; clearTimeout(timer); timer = setTimeout(() => m.hide(), 180); });
+    wrap.addEventListener('mouseleave', () => { m.hovering = false; clearTimeout(timer); timer = setTimeout(() => m.hide(), 180); });
     return m;
   }
 
