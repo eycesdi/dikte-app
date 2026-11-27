@@ -39,10 +39,20 @@ let tray = null;
 
 // Tek örnek: ikinci kez açılırsa mevcut çubuğu öne getir
 if (!app.requestSingleInstanceLock()) { app.quit(); }
-app.on('second-instance', () => { if (mainWin) { mainWin.show(); } });
+app.on('second-instance', () => showBar());
 
-function showBar() { if (mainWin && !mainWin.isDestroyed()) { mainWin.show(); } }
-function hideToTray() { if (mainWin && !mainWin.isDestroyed()) { mainWin.hide(); } }
+// Bar tray'e küçülünce model bellekten boşaltılır; geri açılınca arka planda yeniden yüklenir
+function showBar() {
+  if (!mainWin || mainWin.isDestroyed()) return;
+  mainWin.show(); touch();
+  if (!whisper) loadWhisper();
+}
+function hideToTray() {
+  if (!mainWin || mainWin.isDestroyed()) return;
+  mainWin.hide();
+  if (recordingActive) pendingUnload = true;       // kayıt sürüyorsa bitince boşalt
+  else unloadWhisper('tray');
+}
 
 function createTray() {
   tray = new Tray(nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'tray.png')).resize({ width: 16, height: 16 }));
@@ -139,6 +149,28 @@ let restarts = 0;
 let take = { lang: 'auto', file: null, commits: [] };   // son kayıt: günlük için
 let quitting = false;
 let mainWin = null;
+let whisperState = 'loading';            // 'loading' | 'ready' | 'unloaded'
+let recordingActive = false;
+let pendingUnload = false;
+let lastActivity = Date.now();
+const touch = () => { lastActivity = Date.now(); };
+// Boşta kalma süresi: bu kadar süre kayıt yapılmazsa model bellekten boşalır (test için DIKTE_IDLE_MS)
+const IDLE_MS = Number(process.env.DIKTE_IDLE_MS) || 5 * 60 * 1000;
+const toRenderer = (m) => { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('whisper', m); };
+
+function loadWhisper() {
+  if (whisper) return;
+  restarts = 0; whisperState = 'loading'; touch();
+  toRenderer({ type: 'loading' });
+  startWhisper();
+}
+function unloadWhisper(why) {
+  if (!whisper) return;
+  const proc = whisper;
+  whisper = null; whisperReady = false; whisperState = 'unloaded'; pendingUnload = false;
+  try { proc.kill(); } catch (e) {}                 // süreç kapanınca CUDA belleği tamamen geri döner
+  toRenderer({ type: 'unloaded', why });
+}
 
 function startWhisper() {
   // Paketli sürümde Python ve model uygulamanın 'resources' klasöründe, geliştirmede proje klasöründe
@@ -147,29 +179,36 @@ function startWhisper() {
   const script = path.join(res, 'python', 'whisper_server.py');
   const env = { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' };
   if (app.isPackaged) { env.DIKTE_MODELS_DIR = path.join(res, 'models'); env.HF_HUB_OFFLINE = '1'; }
-  whisper = spawn(py, [script], { env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+  const proc = spawn(py, [script], { env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+  whisper = proc;
   let acc = '';
-  whisper.stdout.setEncoding('utf8');
-  whisper.stdout.on('data', (d) => {
+  proc.stdout.setEncoding('utf8');
+  proc.stdout.on('data', (d) => {
     acc += d;
     let i;
     while ((i = acc.indexOf(String.fromCharCode(10))) >= 0) {
       const line = acc.slice(0, i).trim(); acc = acc.slice(i + 1);
       if (!line) continue;
       let msg; try { msg = JSON.parse(line); } catch (e) { continue; }
-      if (msg.type === 'ready') { whisperReady = true; whisperInfo = msg; restarts = 0; }
+      if (msg.type === 'ready') { whisperReady = true; whisperState = 'ready'; whisperInfo = msg; restarts = 0; touch(); }
       if (msg.type === 'commit' && KEEP) take.commits.push(msg.text);
-      if (msg.type === 'done' && KEEP) logTake();
-      if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('whisper', msg);
+      if (msg.type === 'done') {
+        recordingActive = false; touch();
+        if (KEEP) logTake();
+        if (pendingUnload || (mainWin && !mainWin.isVisible())) { toRenderer(msg); unloadWhisper('tray'); continue; }
+      }
+      toRenderer(msg);
     }
   });
-  whisper.stderr.on('data', (d) => console.error('[whisper]', String(d).trim()));
-  whisper.on('exit', (code) => {
-    whisperReady = false;
+  proc.stderr.on('data', (d) => console.error('[whisper]', String(d).trim()));
+  proc.on('exit', () => {
+    if (proc !== whisper) return;                   // bilerek boşaltıldı ya da yeni süreç var
+    whisperReady = false; whisper = null;
     if (quitting) return;
-    const notify = (t) => { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('whisper', { type: t }); };
-    if (restarts < 3) { restarts++; notify('restarting'); setTimeout(startWhisper, 1000); }
-    else notify('failed');
+    if (restarts < 3) {
+      restarts++; toRenderer({ type: 'restarting' });
+      setTimeout(() => { if (!whisper && whisperState !== 'unloaded') startWhisper(); }, 1000);
+    } else toRenderer({ type: 'failed' });
   });
 }
 
@@ -238,27 +277,60 @@ function runSnapSelftest(win) {
   }, 1500);
 }
 
+// Geliştirme testi: DIKTE_SELFTEST=unload -> tray ve boşta kalma ile ekran kartı belleğinin gerçekten boşaldığını ölçer
+async function runUnloadSelftest() {
+  const { execSync } = require('child_process');
+  const gpu = () => Number(execSync('nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits').toString().trim());
+  const log = (k, v) => console.log('[selftest]', k, JSON.stringify(v));
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const waitFor = async (cond, ms) => { const t = Date.now(); while (!cond() && Date.now() - t < ms) await sleep(500); return cond(); };
+  log('1) acilis oncesi GPU MB', gpu());
+  log('2) model yuklendi mi', { ok: await waitFor(() => whisperState === 'ready', 120000), gpuMB: gpu() });
+  hideToTray(); await sleep(6000);
+  log('3) tray sonrasi', { state: whisperState, visible: mainWin.isVisible(), gpuMB: gpu() });
+  showBar();
+  log('4) tray den donunce yeniden yuklendi mi', { ok: await waitFor(() => whisperState === 'ready', 120000), gpuMB: gpu() });
+  await sleep(IDLE_MS + 8000);
+  log('5) bosta kalinca (' + IDLE_MS + ' ms)', { state: whisperState, gpuMB: gpu() });
+  if (process.env.DIKTE_SELFTEST_UI) {
+    const run = (c) => mainWin.webContents.executeJavaScript(c);
+    log('6) arayuz bosken', await run(`({ unloaded, whisperReady, text: text.textContent, recDisabled: rec.disabled })`));
+    await run(`rec.click()`);
+    log('7) kayit tusuna basinca', await run(`({ pendingStart, text: text.textContent, recDisabled: rec.disabled })`));
+    await waitFor(() => whisperState === 'ready', 120000); await sleep(2500);
+    log('8) yuklenince kayit basladi mi', await run(`({ recording, text: text.textContent, recOn: rec.classList.contains('on') })`));
+    await run(`rec.click()`); await sleep(3000);
+    log('9) durdurunca', await run(`({ recording, text: text.textContent })`));
+  }
+  app.quit();
+}
+
 app.whenReady().then(() => {
   wipeRecordings();                      // önceki oturumdan kalan kayıt varsa sil
   mainWin = createBar();
   createTray();
-  const selftest = !!process.env.DIKTE_SELFTEST;
+  const selftest = process.env.DIKTE_SELFTEST === '1';
   if (!selftest) startWhisper();
-  ipcMain.handle('whisper-status', () => ({ ready: whisperReady, info: whisperInfo }));
+  // Boşta kalınca bellekten boşalt (kayıt yokken IDLE_MS boyunca hiçbir kullanım olmazsa)
+  setInterval(() => {
+    if (whisperState === 'ready' && !recordingActive && Date.now() - lastActivity > IDLE_MS) unloadWhisper('idle');
+  }, Math.min(30000, Math.max(1000, IDLE_MS / 4)));
+  ipcMain.handle('whisper-status', () => ({ ready: whisperReady, info: whisperInfo, state: whisperState }));
+  ipcMain.on('whisper-load', () => loadWhisper());
   ipcMain.on('close-app', () => app.quit());
   ipcMain.on('minimize-to-tray', () => hideToTray());
   ipcMain.on('drag-start', () => mainWin.dragStart());
   ipcMain.on('drag-move', (e, dx, dy) => mainWin.dragMove(dx, dy));
   ipcMain.on('drag-end', () => mainWin.dragEnd());
-  ipcMain.handle('copy-text', (e, t) => { clipboard.writeText(String(t || '')); return true; });
-  ipcMain.on('audio-start', (e, lang) => { chunks = []; sampleCount = 0; take = { lang: lang || 'auto', file: null, commits: [] }; send({ cmd: 'start', lang: lang || 'auto' }); });
+  ipcMain.handle('copy-text', (e, t) => { touch(); clipboard.writeText(String(t || '')); return true; });
+  ipcMain.on('audio-start', (e, lang) => { recordingActive = true; touch(); chunks = []; sampleCount = 0; take = { lang: lang || 'auto', file: null, commits: [] }; send({ cmd: 'start', lang: lang || 'auto' }); });
   ipcMain.on('audio-chunk', (e, buf) => {
     const f = new Float32Array(buf);
-    sampleCount += f.length;
+    sampleCount += f.length; touch();
     if (KEEP) chunks.push(f);          // varsayılanda ses hiçbir yerde biriktirilmez
     send({ cmd: 'audio', data: floatToB64Int16(f) });
   });
-  ipcMain.on('audio-stop', () => send({ cmd: 'stop' }));
+  ipcMain.on('audio-stop', () => { send({ cmd: 'stop' }); setTimeout(() => { recordingActive = false; }, 15000); });   // 'done' gelmezse takılı kalmasın
   ipcMain.handle('audio-save', () => {
     const seconds = sampleCount / SAMPLE_RATE;
     if (KEEP) {
@@ -282,6 +354,7 @@ app.whenReady().then(() => {
     win.setBounds({ x: b.x, y, width: b.width, height });
   });
   if (selftest) runSnapSelftest(mainWin);
+  if (process.env.DIKTE_SELFTEST === 'unload') runUnloadSelftest();
 });
 
 app.on('before-quit', () => { quitting = true; if (whisper) whisper.kill(); wipeRecordings(); });

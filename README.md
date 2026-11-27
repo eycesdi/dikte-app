@@ -18,3 +18,9 @@ Whisper ile canlı yazıya çevirir. Türkçe + İngilizce. Ses ve metin diske y
 
 ## Gizlilik
 Ses ve metin varsayılan olarak diske yazılmaz. Sadece geliştirme için `DIKTE_KEEP_RECORDINGS=1` ile açılır ve uygulama kapanınca silinir.
+
+## Bellek (VRAM) yönetimi
+Model ekran kartı belleğinde ~1.1 GB yer tutar. Oyun vb. için:
+- Tray'e küçültünce model bellekten boşaltılır; tray'den açınca arka planda yeniden yüklenir (10-20 sn).
+- Açıkken 5 dakika kayıt yapılmazsa model boşaltılır; kayıt tuşuna basınca yeniden yüklenir ve kayıt kendiliğinden başlar.
+- Ana uygulama çökerse/kapanırsa Python süreci de kendiliğinden kapanır (bellek tutmaz).

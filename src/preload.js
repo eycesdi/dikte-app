@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('dikte', {
   dragMove: (dx, dy) => ipcRenderer.send('drag-move', dx, dy),
   dragEnd: () => ipcRenderer.send('drag-end'),
   minimize: () => ipcRenderer.send('minimize-to-tray'),
+  loadWhisper: () => ipcRenderer.send('whisper-load'),
   audioStop: () => ipcRenderer.send('audio-stop'),
   copyText: (t) => ipcRenderer.invoke('copy-text', t),
   whisperStatus: () => ipcRenderer.invoke('whisper-status'),

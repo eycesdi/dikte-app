@@ -158,13 +158,14 @@
   }
 
   // ---- Whisper durumu ve canlı yazı ----
-  let whisperReady = false, committed = '', partial = '', doneResolve = null;
+  let whisperReady = false, committed = '', partial = '', doneResolve = null, unloaded = false, pendingStart = false;
   rec.disabled = true; rec.style.opacity = '.5';
   setText('Whisper yükleniyor…');
 
   function setReady(info) {
-    whisperReady = true; rec.disabled = false; rec.style.opacity = '';
-    if (!recording) setText('Konuşmak için kayıt tuşuna bas…' + (info && info.device === 'cpu' ? ' (CPU)' : ''));
+    whisperReady = true; unloaded = false; rec.disabled = false; rec.style.opacity = '';
+    if (pendingStart) { pendingStart = false; rec.click(); return; }       // boşken basılan kayıt tuşu: yüklenince kaydı başlat
+    if (!recording && !curText()) setText('Konuşmak için kayıt tuşuna bas…' + (info && info.device === 'cpu' ? ' (CPU)' : ''));
   }
   const copyBtn = document.getElementById('copy');
   const curText = () => (committed + ' ' + partial).trim();
@@ -181,13 +182,27 @@
     else if (m.type === 'partial') { partial = m.text; if (recording) showLive(); }
     else if (m.type === 'commit') { committed = (committed + ' ' + m.text).trim(); partial = ''; if (recording) showLive(); }
     else if (m.type === 'done') { if (doneResolve) doneResolve(); }
+    else if (m.type === 'loading') { whisperReady = false; rec.disabled = true; rec.style.opacity = '.5'; if (!recording) setText('Whisper yükleniyor…'); }
+    else if (m.type === 'unloaded') {
+      whisperReady = false; unloaded = true; rec.disabled = false; rec.style.opacity = '';
+      rec.title = 'Kayıt tuşuna basınca model yeniden yüklenir ve kayıt başlar';
+      if (!recording && !curText()) setText('Bellek boşaltıldı · kayıt tuşuna basınca açılır');
+    }
     else if (m.type === 'restarting') { whisperReady = false; rec.disabled = true; rec.style.opacity = '.5'; setText('Konuşma motoru yeniden başlatılıyor…'); }
     else if (m.type === 'failed') { whisperReady = false; rec.disabled = true; rec.style.opacity = '.5'; setText('Konuşma motoru başlatılamadı. Uygulamayı yeniden aç.'); }
   });
   window.dikte.whisperStatus().then(s => { if (s.ready) setReady(s.info); });
 
   rec.addEventListener('click', async () => {
-    if (busy || !whisperReady) return;
+    if (busy) return;
+    if (!whisperReady) {
+      if (unloaded) {                  // bellek boşaltılmıştı: yükle, hazır olunca kayıt kendiliğinden başlar
+        pendingStart = true; unloaded = false;
+        rec.disabled = true; rec.style.opacity = '.5'; setText('Whisper yükleniyor…');
+        window.dikte.loadWhisper();
+      }
+      return;
+    }
     busy = true;
     try {
       if (!recording) {

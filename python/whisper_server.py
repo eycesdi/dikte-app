@@ -242,6 +242,7 @@ def read_stdin(d):
         line = line.strip()
         if line:
             d.feed(json.loads(line))
+    os._exit(0)   # ana uygulama kapandı/çöktü (stdin koptu): artta kalıp ekran kartı belleğini tutma
 
 
 def test_file(path):
