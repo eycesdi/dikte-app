@@ -4,10 +4,15 @@
   "description": "Windows dikte uygulamasi (yerel Whisper, TR/EN)",
   "main": "src/main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "stage": "python scripts/stage.py",
+    "pack": "npm run stage && electron-packager . Dikte --platform=win32 --arch=x64 --out=dist --overwrite --no-asar --icon=assets/icon.ico --app-version=0.1.0 --ignore=\"^/([.]venv|[.]git|build|dist|python|scripts|Dikte[.]vbs|vocabulary[.]txt|[.]gitignore)\" --extra-resource=build/py --extra-resource=build/models --extra-resource=build/python --extra-resource=vocabulary.txt"
   },
   "private": true,
   "devDependencies": {
+    "@electron/packager": "^20.3.0",
     "electron": "^45.5.0"
-  }
+  },
+  "productName": "Dikte",
+  "author": "eycesdi"
 }

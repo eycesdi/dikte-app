@@ -141,12 +141,13 @@ let quitting = false;
 let mainWin = null;
 
 function startWhisper() {
-  const py = path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe');
-  const script = path.join(__dirname, '..', 'python', 'whisper_server.py');
-  whisper = spawn(py, [script], {
-    env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
-    stdio: ['pipe', 'pipe', 'pipe']
-  });
+  // Paketli sürümde Python ve model uygulamanın 'resources' klasöründe, geliştirmede proje klasöründe
+  const res = app.isPackaged ? process.resourcesPath : path.join(__dirname, '..');
+  const py = app.isPackaged ? path.join(res, 'py', 'python.exe') : path.join(res, '.venv', 'Scripts', 'python.exe');
+  const script = path.join(res, 'python', 'whisper_server.py');
+  const env = { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' };
+  if (app.isPackaged) { env.DIKTE_MODELS_DIR = path.join(res, 'models'); env.HF_HUB_OFFLINE = '1'; }
+  whisper = spawn(py, [script], { env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
   let acc = '';
   whisper.stdout.setEncoding('utf8');
   whisper.stdout.on('data', (d) => {

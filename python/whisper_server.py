@@ -29,7 +29,7 @@ import numpy as np
 
 # --- Windows'ta CUDA DLL'lerini (pip ile kurulan cublas/cudnn) bul ---
 if sys.platform == "win32":
-    _site = os.path.join(os.path.dirname(sys.executable), "..", "Lib", "site-packages", "nvidia")
+    _site = os.path.join(sys.prefix, "Lib", "site-packages", "nvidia")   # venv ve paketli Python için aynı düzen
     for _pkg in ("cublas", "cudnn"):
         _bin = os.path.abspath(os.path.join(_site, _pkg, "bin"))
         if os.path.isdir(_bin):
@@ -113,8 +113,16 @@ def fix_text(text):
     return _WORD_RE.sub(repl, text)
 
 
+def model_ref(name):
+    """Paketli sürümde model, uygulamanın içindeki klasörden yüklenir (internet gerekmez)."""
+    d = os.environ.get("DIKTE_MODELS_DIR")
+    if d and os.path.isdir(os.path.join(d, name)):
+        return os.path.join(d, name)
+    return name
+
+
 def load_model(name=None):
-    name = name or MODEL_NAME
+    name = model_ref(name or MODEL_NAME)
     try:
         return WhisperModel(name, device="cuda", compute_type="int8_float16"), "cuda"
     except Exception as e:  # CUDA yoksa CPU'ya düş
