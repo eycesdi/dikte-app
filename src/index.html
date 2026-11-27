@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Dikte</title>
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
+    font-family: "Segoe UI", sans-serif; user-select: none; }
+  .bar { display: flex; align-items: center; gap: 10px; height: 100%; box-sizing: border-box;
+    padding: 0 10px; background: rgba(24,24,28,.94); color: #eee; border-radius: 26px;
+    border: 1px solid rgba(255,255,255,.1); -webkit-app-region: drag; }
+  button { -webkit-app-region: no-drag; border: 0; cursor: pointer; color: #fff; }
+  #rec { width: 34px; height: 34px; border-radius: 50%; background: #3a3a42; flex: none; }
+  #rec::after { content: ""; display: block; width: 12px; height: 12px; margin: auto;
+    border-radius: 50%; background: #e5484d; }
+  #rec.on { background: #e5484d; animation: pulse 1.2s infinite; }
+  #rec.on::after { background: #fff; border-radius: 3px; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(229,72,77,.25); } }
+  #text { flex: 1; font-size: 14px; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; direction: rtl; text-align: left; color: #aaa; }
+  #text.live { color: #fff; }
+  #close { width: 26px; height: 26px; border-radius: 50%; background: transparent;
+    color: #888; font-size: 16px; flex: none; }
+  #close:hover { background: #3a3a42; color: #fff; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <button id="rec" title="Kaydı başlat / durdur"></button>
+  <div id="text"><bdi>Konuşmak için kayıt tuşuna bas…</bdi></div>
+  <button id="close" title="Kapat">✕</button>
+</div>
+<script>
+  const rec = document.getElementById('rec');
+  const text = document.getElementById('text');
+  rec.addEventListener('click', () => {
+    const on = rec.classList.toggle('on');
+    text.classList.toggle('live', on);
+    text.firstChild.textContent = on ? 'Dinliyorum…' : 'Konuşmak için kayıt tuşuna bas…';
+  });
+  document.getElementById('close').addEventListener('click', () => window.dikte.close());
+</script>
+</body>
+</html>

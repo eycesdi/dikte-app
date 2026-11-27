@@ -1,0 +1,13 @@
+{
+  "name": "dikte-app",
+  "version": "0.1.0",
+  "description": "Windows dikte uygulamasi (yerel Whisper, TR/EN)",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "private": true,
+  "devDependencies": {
+    "electron": "^45.5.0"
+  }
+}
